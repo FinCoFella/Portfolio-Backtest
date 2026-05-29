@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(wsl -d Ubuntu-24.04 -- bash -c \"cd '/home/fincofella/dev/Backtest Dev' && pip install -q -r requirements.txt && echo 'Install OK'\")",
+      "Bash(wsl -d Ubuntu-24.04 -- bash -c \"cd '/home/fincofella/dev/Backtest Dev' && python3 -m venv .venv && .venv/bin/pip install -q -r requirements.txt && echo 'Install OK'\")",
+      "Bash(wsl -d Ubuntu-24.04 -- bash -c \"cd '/home/fincofella/dev/Backtest Dev' && echo 'from src.data.fmp_client import FMPClient; import os; from dotenv import load_dotenv; from pathlib import Path; load_dotenv\\(Path\\(\\\\\".\\\\\"\\) / \\\\\"Miscellaneous\\\\\" / \\\\\".env\\\\\"\\); c = FMPClient\\(os.getenv\\(\\\\\"FMP_API_KEY\\\\\"\\)\\); df = c.get_historical_prices\\(\\\\\"AAPL\\\\\", \\\\\"2024-01-01\\\\\", \\\\\"2024-01-31\\\\\"\\); print\\(df.tail\\(3\\).to_string\\(\\)\\)' | .venv/bin/python3\")",
+      "Bash(wsl -d Ubuntu-24.04 -- bash -c \"curl -s 'https://financialmodelingprep.com/api/v3/quote/AAPL?apikey=I052NsNvpSwIuAGYd8LdW8MECKP6OPSk' | head -c 300\")",
+      "Bash(wsl -d Ubuntu-24.04 -- bash -c \"curl -s 'https://financialmodelingprep.com/stable/historical-price-eod/full?symbol=AAPL&from=2024-01-01&to=2024-01-10&apikey=I052NsNvpSwIuAGYd8LdW8MECKP6OPSk' | head -c 500\")",
+      "Bash(wsl -d Ubuntu-24.04 -- bash -c \"curl -s 'https://financialmodelingprep.com/stable/historical-price-eod/dividend-adjusted?symbol=AAPL&from=2024-01-01&to=2024-01-10&apikey=I052NsNvpSwIuAGYd8LdW8MECKP6OPSk' | head -c 500\")",
+      "Bash(wsl -d Ubuntu-24.04 -- bash -c 'cd '\\\\''/home/fincofella/dev/Backtest Dev'\\\\'' && .venv/bin/python3 -c \" *)",
+      "Bash(wsl -d Ubuntu-24.04 -- bash -c \"mkdir -p /home/fincofella/dev/'Backtest Dev'/src/portfolio && echo done\")",
+      "Bash(wsl -d Ubuntu-24.04 -- bash -c 'cd '\\\\''/home/fincofella/dev/Backtest Dev'\\\\'' && echo '\\\\''AAPL,MSFT,GOOGL *)",
+      "Bash(wsl -d Ubuntu-24.04 -- bash -c \"curl -s 'https://financialmodelingprep.com/stable/historical-price-eod/full?symbol=%5EGSPC&from=2024-01-01&to=2024-01-05&apikey=I052NsNvpSwIuAGYd8LdW8MECKP6OPSk' | head -c 400\")",
+      "Bash(wsl -d Ubuntu-24.04 -- bash -c 'cd '\\\\''/home/fincofella/dev/Backtest Dev'\\\\'' && echo '\\\\''AAPL,MSFT *)",
+      "Bash(wsl -d Ubuntu-24.04 -- bash -c \"cd '/home/fincofella/dev/Backtest Dev' && .venv/bin/pip install -q reportlab && echo done\")",
+      "Bash(wsl -d Ubuntu-24.04 -- bash -c \"ls -lh '/home/fincofella/dev/Backtest Dev/Client/Tearsheet/'\")",
+      "Bash(wsl -d Ubuntu-24.04 -- bash -c \"mkdir -p '/home/fincofella/dev/Backtest Dev/src/cli' && echo done\")"
+    ]
+  }
+}
