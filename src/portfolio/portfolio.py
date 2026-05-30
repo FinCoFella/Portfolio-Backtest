@@ -72,6 +72,8 @@ def summary(
         ("Sharpe Ratio",  f"{ratio_metrics.sharpe(dr, risk_free_rate):.4f}"),
         ("Sortino Ratio", f"{ratio_metrics.sortino(dr, risk_free_rate):.4f}"),
     ]
+    if benchmark_returns is not None:
+        ratio_rows.append(("Treynor Ratio", f"{rel_metrics.treynor(dr, benchmark_returns, risk_free_rate):.4f}"))
 
     # ── Relative metrics ──────────────────────────────────────────────────────
     rel_rows = []
@@ -79,7 +81,6 @@ def summary(
         rel_rows = [
             ("Beta",              f"{rel_metrics.beta(dr, benchmark_returns):.4f}"),
             ("Alpha (annualized)",f"{rel_metrics.alpha(dr, benchmark_returns, risk_free_rate):.2%}"),
-            ("Treynor Ratio",     f"{rel_metrics.treynor(dr, benchmark_returns, risk_free_rate):.4f}"),
             ("Excess Return",     f"{rel_metrics.excess_return(dr, benchmark_returns):.2%}"),
             ("Tracking Error",    f"{rel_metrics.tracking_error(dr, benchmark_returns):.2%}"),
             ("Information Ratio", f"{rel_metrics.information_ratio(dr, benchmark_returns):.4f}"),

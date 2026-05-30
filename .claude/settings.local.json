@@ -14,7 +14,11 @@
       "Bash(wsl -d Ubuntu-24.04 -- bash -c 'cd '\\\\''/home/fincofella/dev/Backtest Dev'\\\\'' && echo '\\\\''AAPL,MSFT *)",
       "Bash(wsl -d Ubuntu-24.04 -- bash -c \"cd '/home/fincofella/dev/Backtest Dev' && .venv/bin/pip install -q reportlab && echo done\")",
       "Bash(wsl -d Ubuntu-24.04 -- bash -c \"ls -lh '/home/fincofella/dev/Backtest Dev/Client/Tearsheet/'\")",
-      "Bash(wsl -d Ubuntu-24.04 -- bash -c \"mkdir -p '/home/fincofella/dev/Backtest Dev/src/cli' && echo done\")"
+      "Bash(wsl -d Ubuntu-24.04 -- bash -c \"mkdir -p '/home/fincofella/dev/Backtest Dev/src/cli' && echo done\")",
+      "Bash(wsl -d Ubuntu-24.04 -- bash -c \"cd '/home/fincofella/dev/Backtest Dev' && .venv/bin/pip install -q matplotlib && echo done\")",
+      "Bash(wsl -d Ubuntu-24.04 -- bash -c \"cd '/home/fincofella/dev/Backtest Dev' && .venv/bin/python3 -c 'from openpyxl.drawing.image import Image; from PIL import Image as PILImg; print\\(\\\\\"OK\\\\\"\\)'  2>&1\")",
+      "Bash(ls -la /home/fincofella/dev)",
+      "Read(///wsl.localhost/Ubuntu-24.04/home/fincofella/**)"
     ]
   }
 }

@@ -54,30 +54,29 @@ def main() -> None:
     portfolio_tickers = [t for t in tickers if t in data]
     ticker_data       = {t: data[t] for t in portfolio_tickers}
 
-    # ── Pricing preview & Excel export ───────────────────────────────────────
+    # ── Pricing preview ───────────────────────────────────────────────────────
     preview_data(data)
 
-    export_dir = Path(__file__).parent / "Client" / "Pricing Data"
-    saved_path = excel_export.export_pricing(
-        data, export_dir, start, end,
-        benchmark_ticker=benchmark,
-        risk_free_rate=risk_free_rate,
-    )
-    print(f"\nPricing data saved to: {saved_path.name}\n")
-
     # ── Per-ticker metrics ────────────────────────────────────────────────────
+    # comparison_data adds the benchmark so it appears alongside portfolio tickers
+    # in return, risk, and ratio tables. Relative metrics use ticker_data only
+    # since the benchmark cannot be compared against itself.
+    comparison_data = dict(ticker_data)
+    if benchmark in data:
+        comparison_data[display_name(benchmark)] = data[benchmark]
+
     pct_ret  = {"total_return", "cagr", "annualized_return", "annualized_volatility"}
-    risk_sum = risk_metrics.summary(ticker_data, confidence=0.95)
+    risk_sum = risk_metrics.summary(comparison_data, confidence=0.95)
     pct_risk = set(risk_sum.columns)
 
     print("\n================================== Return Metrics ==================================\n")
-    print_table(ret_metrics.summary(ticker_data), pct_cols=pct_ret)
+    print_table(ret_metrics.summary(comparison_data), pct_cols=pct_ret)
 
     print("\n========================= Risk Metrics (95% confidence) ==========================\n")
     print_table(risk_sum, pct_cols=pct_risk)
 
     print("\n====== Risk-Adjusted Ratios ======\n")
-    print_table(ratio_metrics.summary(ticker_data, risk_free_rate=risk_free_rate))
+    print_table(ratio_metrics.summary(comparison_data, risk_free_rate=risk_free_rate))
 
     if benchmark in data:
         pct_rel = {"alpha", "excess_return", "tracking_error"}
@@ -100,7 +99,16 @@ def main() -> None:
         benchmark_ticker=display_name(benchmark) if benchmark in data else None,
     )
 
-    # ── PDF tearsheet ─────────────────────────────────────────────────────────
+    # ── Excel & PDF exports (weights now known) ───────────────────────────────
+    export_dir = Path(__file__).parent / "Client" / "Pricing Data"
+    saved_path = excel_export.export_pricing(
+        data, export_dir, start, end,
+        benchmark_ticker=benchmark,
+        risk_free_rate=risk_free_rate,
+        weights=weights,
+    )
+    print(f"\nPricing data saved to: {saved_path.name}")
+
     tearsheet_dir = Path(__file__).parent / "Client" / "Tearsheet"
     pdf_path = pdf_export.export_tearsheet(
         price_data=data,

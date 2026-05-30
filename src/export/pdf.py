@@ -7,7 +7,7 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from reportlab.platypus import (
     SimpleDocTemplate, Table, TableStyle,
-    Paragraph, Spacer, HRFlowable, KeepTogether, PageBreak,
+    Paragraph, Spacer, HRFlowable, KeepTogether, PageBreak, Image,
 )
 
 from src.metrics import returns  as ret_metrics
@@ -176,6 +176,11 @@ def export_tearsheet(
     tickers      = list(ticker_data.keys())
     bench_disp   = _disp(benchmark_ticker) if benchmark_ticker else "N/A"
     ticker_str   = ", ".join(tickers)
+
+    # Include benchmark in per-ticker comparison tables (excluding relative metrics)
+    comparison_data = dict(ticker_data)
+    if benchmark_ticker and benchmark_ticker in price_data:
+        comparison_data[bench_disp] = price_data[benchmark_ticker]
     filename     = f"Tearsheet_{start_date}_to_{end_date}.pdf"
     filepath     = output_dir / filename
 
@@ -217,9 +222,9 @@ def export_tearsheet(
     story.append(Spacer(1, 10))
 
     # ── Per-ticker metrics ────────────────────────────────────────────────────
-    ret_sum  = ret_metrics.summary(ticker_data)
-    risk_sum = risk_metrics.summary(ticker_data, confidence=confidence)
-    rat_sum  = ratio_metrics.summary(ticker_data, risk_free_rate=risk_free_rate)
+    ret_sum  = ret_metrics.summary(comparison_data)
+    risk_sum = risk_metrics.summary(comparison_data, confidence=confidence)
+    rat_sum  = ratio_metrics.summary(comparison_data, risk_free_rate=risk_free_rate)
 
     pct_ret  = {"total_return", "cagr", "annualized_return", "annualized_volatility"}
     pct_risk = set(risk_sum.columns)
@@ -261,6 +266,22 @@ def export_tearsheet(
     story.append(Spacer(1, 10))
     story.append(HRFlowable(width="100%", thickness=1.5, color=_NAVY, spaceAfter=10))
 
+    # ── Growth of $10,000 chart ───────────────────────────────────────────────
+    from src.export.charts import growth_of_10k
+    bench_ret_series = (ret_metrics.daily_returns(price_data[benchmark_ticker])
+                        if benchmark_ticker and benchmark_ticker in price_data
+                        else None)
+    chart_buf = growth_of_10k(
+        portfolio_returns=portfolio_returns,
+        benchmark_returns=bench_ret_series,
+        portfolio_label="Portfolio",
+        benchmark_label=bench_disp,
+        width_in=WIDTH / inch,
+        height_in=3.2,
+    )
+    story.append(Image(chart_buf, width=WIDTH, height=3.2 * inch))
+    story.append(Spacer(1, 12))
+
     dr   = portfolio_returns
     half = (WIDTH - 12) / 2
 
@@ -286,6 +307,8 @@ def export_tearsheet(
         ("Sharpe Ratio",  f"{ratio_metrics.sharpe(dr, risk_free_rate):.4f}"),
         ("Sortino Ratio", f"{ratio_metrics.sortino(dr, risk_free_rate):.4f}"),
     ]
+    if bench_ret_series is not None:
+        ratio_rows.append(("Treynor Ratio", f"{rel_metrics.treynor(dr, bench_ret_series, risk_free_rate):.4f}"))
 
     story.append(KeepTogether([
         _section("Portfolio Return Metrics"),
@@ -310,7 +333,6 @@ def export_tearsheet(
         rel_rows = [
             ("Beta",               f"{rel_metrics.beta(dr, bench_returns):.4f}"),
             ("Alpha (annualized)", f"{rel_metrics.alpha(dr, bench_returns, risk_free_rate):.2%}"),
-            ("Treynor Ratio",      f"{rel_metrics.treynor(dr, bench_returns, risk_free_rate):.4f}"),
             ("Excess Return",      f"{rel_metrics.excess_return(dr, bench_returns):.2%}"),
             ("Tracking Error",     f"{rel_metrics.tracking_error(dr, bench_returns):.2%}"),
             ("Information Ratio",  f"{rel_metrics.information_ratio(dr, bench_returns):.4f}"),

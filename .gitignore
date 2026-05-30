@@ -9,3 +9,6 @@ __pycache__/
 # Environment variables (keep secrets out of git)
 .env
 .env.local
+
+# Markdown Files
+*.md
