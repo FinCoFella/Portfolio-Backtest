@@ -67,54 +67,7 @@ def _style_data_rows(ws, first_row: int, last_row: int, n_cols: int,
                 cell.number_format = num_format
 
 
-# ── Daily Returns sheet ───────────────────────────────────────────────────────
-
-def _build_returns_sheet(wb, closes: pd.DataFrame, n_data_rows: int) -> None:
-    """
-    Add a 'Daily Returns' sheet with formulas:
-        = 'Adj Close Prices'!Ct+1 / 'Adj Close Prices'!Ct - 1
-    Rows 2..n_data_rows hold the n_data_rows-1 daily return observations.
-    """
-    ws         = wb.create_sheet("Daily Returns")
-    n_tickers  = len(closes.columns)
-    total_cols = n_tickers + 1
-
-    ws.cell(row=1, column=1).value = "Date"
-    for j, ticker in enumerate(closes.columns):
-        ws.cell(row=1, column=j + 2).value = ticker
-    _style_header_row(ws, total_cols)
-
-    for i in range(1, n_data_rows):
-        ret_row   = i + 1
-        price_row = i + 1
-        next_row  = i + 2
-
-        date_cell                = ws.cell(row=ret_row, column=1)
-        date_cell.value          = f"='Adj Close Prices'!A{next_row}"
-        date_cell.font           = _DATE_FONT
-        date_cell.alignment      = _CENTER
-        date_cell.number_format  = "YYYY-MM-DD"
-        date_cell.border         = _THIN_BORDER
-
-        for j in range(n_tickers):
-            c             = _col(j + 2)
-            cell          = ws.cell(row=ret_row, column=j + 2)
-            cell.value    = (f"='Adj Close Prices'!{c}{next_row}"
-                             f"/'Adj Close Prices'!{c}{price_row}-1")
-            cell.font          = _CELL_FONT
-            cell.alignment     = _CENTER
-            cell.number_format = _PCT
-            cell.border        = _THIN_BORDER
-
-    ws.column_dimensions[_col(1)].width = 14
-    for ci in range(2, total_cols + 1):
-        ws.column_dimensions[_col(ci)].width = 14
-
-    ws.freeze_panes             = "A2"
-    ws.sheet_view.showGridLines = False
-
-
-# ── Metrics section in Adj Close Prices ──────────────────────────────────────
+# ── Metrics + embedded Daily Returns in Adj Close Prices ──────────────────────
 
 def _add_metrics_section(
     ws,
@@ -125,11 +78,56 @@ def _add_metrics_section(
 ) -> None:
     n_tickers  = len(closes.columns)
     last_price = n_data_rows + 1
-    sec_start  = last_price + 2
-    n_returns  = n_data_rows
     total_cols = n_tickers + 1
 
-    # Benchmark column index in both sheets (None if not present)
+    # ── Embedded Daily Returns table ──────────────────────────────────────────
+    # Layout: blank row, section header, column header, then n_data_rows-1 data rows
+    dr_hdr     = last_price + 2
+    dr_col_hdr = dr_hdr + 1
+    dr_first   = dr_col_hdr + 1
+    dr_last    = dr_first + n_data_rows - 2   # n_data_rows - 1 return rows
+
+    for c in range(1, total_cols + 1):
+        cell           = ws.cell(row=dr_hdr, column=c)
+        cell.fill      = _SECTION_FILL
+        cell.font      = _SECTION_FONT
+        cell.alignment = _CENTER
+        cell.border    = _SECT_BORDER
+    ws.cell(row=dr_hdr, column=1).value = "DAILY RETURNS"
+
+    ws.cell(row=dr_col_hdr, column=1).value = "Date"
+    for j, ticker in enumerate(closes.columns):
+        ws.cell(row=dr_col_hdr, column=j + 2).value = ticker
+    for c in range(1, total_cols + 1):
+        cell           = ws.cell(row=dr_col_hdr, column=c)
+        cell.fill      = _HEADER_FILL
+        cell.font      = _HEADER_FONT
+        cell.alignment = _CENTER
+
+    for i in range(1, n_data_rows):
+        ret_row   = dr_first + i - 1
+        price_row = i + 1
+        next_row  = i + 2
+
+        date_cell               = ws.cell(row=ret_row, column=1)
+        date_cell.value         = f"=A{next_row}"
+        date_cell.font          = _DATE_FONT
+        date_cell.alignment     = _CENTER
+        date_cell.number_format = "YYYY-MM-DD"
+        date_cell.border        = _THIN_BORDER
+
+        for j in range(n_tickers):
+            c    = _col(j + 2)
+            cell = ws.cell(row=ret_row, column=j + 2)
+            cell.value         = f"={c}{next_row}/{c}{price_row}-1"
+            cell.font          = _CELL_FONT
+            cell.alignment     = _CENTER
+            cell.number_format = _PCT
+            cell.border        = _THIN_BORDER
+
+    # ── Metrics start after a blank row ───────────────────────────────────────
+    sec_start = dr_last + 2
+
     ticker_list   = list(closes.columns)
     bench_col_idx = (ticker_list.index(benchmark_ticker) + 2
                      if benchmark_ticker and benchmark_ticker in ticker_list
@@ -166,6 +164,11 @@ def _add_metrics_section(
                 cell.value         = val
                 cell.number_format = num_format
 
+    def cell_rng(col_idx: int) -> str:
+        """Same-sheet range for the embedded daily returns column."""
+        c = _col(col_idx)
+        return f"{c}{dr_first}:{c}{dr_last}"
+
     # ── Return Metrics ────────────────────────────────────────────────────────
     section_header(sec_start, "RETURN METRICS")
 
@@ -179,13 +182,11 @@ def _add_metrics_section(
          for j in range(n_tickers)])
 
     metric_row(sec_start + 3, "Annualized Return",
-        [f"=AVERAGE('Daily Returns'!{_col(j+2)}2"
-         f":'Daily Returns'!{_col(j+2)}{n_returns})*252"
+        [f"=AVERAGE({cell_rng(j+2)})*252"
          for j in range(n_tickers)])
 
     metric_row(sec_start + 4, "Annualized Volatility",
-        [f"=STDEV('Daily Returns'!{_col(j+2)}2"
-         f":'Daily Returns'!{_col(j+2)}{n_returns})*SQRT(252)"
+        [f"=STDEV({cell_rng(j+2)})*SQRT(252)"
          for j in range(n_tickers)])
 
     # ── Risk Metrics ──────────────────────────────────────────────────────────
@@ -195,40 +196,33 @@ def _add_metrics_section(
         [_max_drawdown(closes.iloc[:, j]) for j in range(n_tickers)])
 
     metric_row(sec_start + 8, "VaR 95% Daily",
-        [f"=-PERCENTILE('Daily Returns'!{_col(j+2)}2"
-         f":'Daily Returns'!{_col(j+2)}{n_returns},0.05)"
+        [f"=-PERCENTILE({cell_rng(j+2)},0.05)"
          for j in range(n_tickers)])
 
     metric_row(sec_start + 9, "ES 95% Daily",
-        [f"=-AVERAGEIF('Daily Returns'!{_col(j+2)}2"
-         f":'Daily Returns'!{_col(j+2)}{n_returns},"
-         f"\"<=\"&PERCENTILE('Daily Returns'!{_col(j+2)}2"
-         f":'Daily Returns'!{_col(j+2)}{n_returns},0.05))"
+        [f"=-AVERAGEIF({cell_rng(j+2)},\"<=\"&PERCENTILE({cell_rng(j+2)},0.05))"
          for j in range(n_tickers)])
 
     note = ws.cell(row=sec_start + 11, column=1)
     note.value = ("* Max Drawdown: pre-computed (max peak-to-trough decline). "
-                  "All other metrics use 'Daily Returns' sheet formulas.")
+                  "All other metrics use Excel formulas above.")
     note.font  = _NOTE_FONT
 
     # ── Risk-Adjusted Ratios ──────────────────────────────────────────────────
-    drf = risk_free_rate / 252   # daily risk-free rate
+    drf = risk_free_rate / 252
 
     section_header(sec_start + 13, "RISK-ADJUSTED RATIOS")
 
     metric_row(sec_start + 14, "Sharpe Ratio",
-        [f"=(AVERAGE('Daily Returns'!{_col(j+2)}2:'Daily Returns'!{_col(j+2)}{n_returns})*252"
-         f"-{risk_free_rate})"
-         f"/(STDEV('Daily Returns'!{_col(j+2)}2:'Daily Returns'!{_col(j+2)}{n_returns})*SQRT(252))"
+        [f"=(AVERAGE({cell_rng(j+2)})*252-{risk_free_rate})"
+         f"/(STDEV({cell_rng(j+2)})*SQRT(252))"
          for j in range(n_tickers)],
         num_format=_DEC4)
 
     metric_row(sec_start + 15, "Sortino Ratio",
-        [f"=(AVERAGE('Daily Returns'!{_col(j+2)}2:'Daily Returns'!{_col(j+2)}{n_returns})*252"
-         f"-{risk_free_rate})"
-         f"/(SQRT(SUMPRODUCT((('Daily Returns'!{_col(j+2)}2:'Daily Returns'!{_col(j+2)}{n_returns}"
-         f"-{drf})*('Daily Returns'!{_col(j+2)}2:'Daily Returns'!{_col(j+2)}{n_returns}<{drf}))^2)"
-         f"/ROWS('Daily Returns'!{_col(j+2)}2:'Daily Returns'!{_col(j+2)}{n_returns}))*SQRT(252))"
+        [f"=(AVERAGE({cell_rng(j+2)})*252-{risk_free_rate})"
+         f"/(SQRT(SUMPRODUCT((({cell_rng(j+2)}-{drf})*({cell_rng(j+2)}<{drf}))^2)"
+         f"/ROWS({cell_rng(j+2)}))*SQRT(252))"
          for j in range(n_tickers)],
         num_format=_DEC4)
 
@@ -237,7 +231,7 @@ def _add_metrics_section(
         ws.column_dimensions[_col(1)].width = 26
         return
 
-    bench_rng        = f"'Daily Returns'!{bench_col}2:'Daily Returns'!{bench_col}{n_returns}"
+    bench_rng_str    = f"{bench_col}{dr_first}:{bench_col}{dr_last}"
     rel_start        = sec_start + 18
     beta_row         = rel_start + 1
     excess_ret_row   = rel_start + 3
@@ -254,51 +248,45 @@ def _add_metrics_section(
                 vals.append("—")
             else:
                 c = _col(col_idx)
-                rng = f"'Daily Returns'!{c}2:'Daily Returns'!{c}{n_returns}"
-                vals.append(formula_fn(c, rng))
+                r = f"{c}{dr_first}:{c}{dr_last}"
+                vals.append(formula_fn(c, r))
         return vals
 
-    # Treynor Ratio — in the Risk-Adjusted section above (sec_start+16).
+    # Treynor in the Risk-Adjusted section above (sec_start+16).
     # Benchmark β vs itself = 1 by definition, so divide by 1 (= equity risk premium).
     def treynor_vals():
         vals = []
         for j in range(n_tickers):
             col_idx = j + 2
-            c   = _col(col_idx)
-            rng = f"'Daily Returns'!{c}2:'Daily Returns'!{c}{n_returns}"
+            c       = _col(col_idx)
+            r       = f"{c}{dr_first}:{c}{dr_last}"
             divisor = "1" if col_idx == bench_col_idx else f"{c}{beta_row}"
-            vals.append(f"=(AVERAGE({rng})*252-{risk_free_rate})/{divisor}")
+            vals.append(f"=(AVERAGE({r})*252-{risk_free_rate})/{divisor}")
         return vals
 
     metric_row(sec_start + 16, "Treynor Ratio", treynor_vals(), num_format=_DEC4)
 
-    # Beta — SLOPE(ticker_returns, bench_returns) is available in all Excel versions
     metric_row(beta_row, "Beta",
-        rel_vals(lambda c, rng:
-            f"=SLOPE({rng},{bench_rng})"),
+        rel_vals(lambda c, r: f"=SLOPE({r},{bench_rng_str})"),
         num_format=_DEC4)
 
-    # Alpha (annualized Jensen's Alpha)
     metric_row(rel_start + 2, "Alpha (Annualized)",
-        rel_vals(lambda c, rng:
-            f"=(AVERAGE({rng})*252-{risk_free_rate})"
-            f"-{c}{beta_row}*(AVERAGE({bench_rng})*252-{risk_free_rate})"))
+        rel_vals(lambda c, r:
+            f"=(AVERAGE({r})*252-{risk_free_rate})"
+            f"-{c}{beta_row}*(AVERAGE({bench_rng_str})*252-{risk_free_rate})"))
 
-    # Excess Return
     metric_row(excess_ret_row, "Excess Return",
-        rel_vals(lambda c, rng:
-            f"=AVERAGE({rng})*252-AVERAGE({bench_rng})*252"))
+        rel_vals(lambda c, r:
+            f"=AVERAGE({r})*252-AVERAGE({bench_rng_str})*252"))
 
-    # Tracking Error — uses SUMPRODUCT to avoid array-formula entry
     metric_row(tracking_err_row, "Tracking Error",
-        rel_vals(lambda c, rng:
-            f"=SQRT(SUMPRODUCT(({rng}-{bench_rng}"
-            f"-AVERAGE({rng})+AVERAGE({bench_rng}))^2)"
-            f"/(ROWS({rng})-1))*SQRT(252)"))
+        rel_vals(lambda c, r:
+            f"=SQRT(SUMPRODUCT(({r}-{bench_rng_str}"
+            f"-AVERAGE({r})+AVERAGE({bench_rng_str}))^2)"
+            f"/(ROWS({r})-1))*SQRT(252)"))
 
-    # Information Ratio
     metric_row(rel_start + 5, "Information Ratio",
-        rel_vals(lambda c, rng:
+        rel_vals(lambda c, r:
             f"={c}{excess_ret_row}/{c}{tracking_err_row}"),
         num_format=_DEC4)
 
@@ -311,6 +299,7 @@ def _build_portfolio_sheet(
     wb,
     closes: pd.DataFrame,
     n_data_rows: int,
+    dr_first: int,
     benchmark_ticker: str = None,
     risk_free_rate: float = 0.0,
     weights: dict = None,
@@ -318,9 +307,10 @@ def _build_portfolio_sheet(
     """
     Add a 'Portfolio (Equal Weight)' sheet containing:
       - weights table
-      - daily portfolio returns column (AVERAGE of non-benchmark tickers)
+      - daily portfolio returns column (weighted sum of individual returns)
       - cumulative return column
       - all metric formula sections
+    Daily returns are sourced from the embedded table in 'Adj Close Prices'.
     """
     ticker_list  = list(closes.columns)
     port_tickers = [t for t in ticker_list if t != benchmark_ticker]
@@ -329,7 +319,7 @@ def _build_portfolio_sheet(
 
     n_port    = len(port_tickers)
     n_returns = n_data_rows - 1
-    n_dr      = n_data_rows
+    dr_last   = dr_first + n_returns - 1
 
     # Resolve weights: use provided weights or default to equal weight
     if weights and all(t in weights for t in port_tickers):
@@ -342,16 +332,16 @@ def _build_portfolio_sheet(
         is_equal     = True
         sheet_title  = "Portfolio (Equal Weight)"
 
-    # Benchmark column in Daily Returns sheet
+    # Benchmark column in Adj Close Prices (same indices as embedded daily returns)
     bench_col_idx = (ticker_list.index(benchmark_ticker) + 2
                      if benchmark_ticker and benchmark_ticker in ticker_list
                      else None)
-    bench_col  = _col(bench_col_idx) if bench_col_idx else None
-    bench_rng  = (f"'Daily Returns'!{bench_col}2:'Daily Returns'!{bench_col}{n_dr}"
-                  if bench_col else None)
+    bench_col = _col(bench_col_idx) if bench_col_idx else None
+    bench_rng = (f"'Adj Close Prices'!{bench_col}{dr_first}:'Adj Close Prices'!{bench_col}{dr_last}"
+                 if bench_col else None)
 
-    # Portfolio ticker column letters in Daily Returns sheet
-    port_cols  = [_col(ticker_list.index(t) + 2) for t in port_tickers]
+    # Portfolio ticker column letters in Adj Close Prices sheet
+    port_cols = [_col(ticker_list.index(t) + 2) for t in port_tickers]
 
     # Pre-compute max drawdown using actual weights
     ret_matrix  = closes[port_tickers].pct_change().dropna()
@@ -368,16 +358,15 @@ def _build_portfolio_sheet(
     WT_START = 6
     WT_END   = WT_START + n_port - 1
 
-    RET_HDR  = WT_END + 2
-    RET_COL  = RET_HDR + 1
+    RET_HDR   = WT_END + 2
+    RET_COL   = RET_HDR + 1
     RET_FIRST = RET_COL + 1
     RET_LAST  = RET_FIRST + n_returns - 1
 
-    MET      = RET_LAST + 2      # metrics section start
-    drf      = risk_free_rate / 252
-    rf       = risk_free_rate
+    MET  = RET_LAST + 2
+    drf  = risk_free_rate / 252
+    rf   = risk_free_rate
 
-    # Shorthand for portfolio return range in this sheet
     port_rng = f"B{RET_FIRST}:B{RET_LAST}"
 
     # ── Inner helpers ─────────────────────────────────────────────────────────
@@ -431,27 +420,24 @@ def _build_portfolio_sheet(
     col_hdr(RET_COL, ["Date", "Daily Return", "Cum. Return"])
 
     def weighted_return(dr_row: int) -> str:
-        terms = [f"{port_weights[t]:.8f}*'Daily Returns'!{c}{dr_row}"
+        terms = [f"{port_weights[t]:.8f}*'Adj Close Prices'!{c}{dr_row}"
                  for t, c in zip(port_tickers, port_cols)]
         return "=" + "+".join(terms)
 
     for i in range(n_returns):
         r      = RET_FIRST + i
-        dr_row = 2 + i          # corresponding row in Daily Returns sheet
+        dr_row = dr_first + i
 
-        # Date
         d = ws.cell(row=r, column=1)
-        d.value = f"='Daily Returns'!A{dr_row}"
+        d.value = f"='Adj Close Prices'!A{dr_row}"
         d.font = _DATE_FONT; d.alignment = _CENTER
         d.number_format = "YYYY-MM-DD"; d.border = _THIN_BORDER
 
-        # Daily return = weighted sum of individual returns
         b = ws.cell(row=r, column=2)
         b.value = weighted_return(dr_row)
         b.font = _CELL_FONT; b.alignment = _CENTER
         b.number_format = _PCT; b.border = _THIN_BORDER
 
-        # Cumulative return
         c = ws.cell(row=r, column=3)
         c.value = f"=1+B{r}" if r == RET_FIRST else f"=C{r-1}*(1+B{r})"
         c.font = _CELL_FONT; c.alignment = _CENTER
@@ -525,7 +511,7 @@ def _build_portfolio_sheet(
         height_in=3.2,
     )
     xl_img        = XLImage(chart_buf)
-    xl_img.width  = 576    # ~8 inches at 72 px/inch
+    xl_img.width  = 576
     xl_img.height = 230
     ws.add_image(xl_img, "E1")
 
@@ -562,6 +548,10 @@ def export_pricing(
     n_ticker_cols = len(closes.columns)
     n_cols        = n_ticker_cols + 1
 
+    # Row where the embedded daily returns data starts in Adj Close Prices:
+    #   last_price (n_data_rows+1) + blank + section_hdr + col_hdr + 1 = n_data_rows + 5
+    dr_first = n_data_rows + 5
+
     with pd.ExcelWriter(filepath, engine="openpyxl", date_format="YYYY-MM-DD") as writer:
         closes.to_excel(writer, sheet_name="Adj Close Prices", index=True)
 
@@ -573,9 +563,9 @@ def export_pricing(
         _style_data_rows(ws, 2, n_data_rows + 1, n_cols)
 
         bench_display = _disp(benchmark_ticker) if benchmark_ticker else None
-        _build_returns_sheet(wb, closes, n_data_rows)
         _add_metrics_section(ws, closes, n_data_rows, bench_display, risk_free_rate)
-        _build_portfolio_sheet(wb, closes, n_data_rows, bench_display, risk_free_rate, weights)
+        _build_portfolio_sheet(wb, closes, n_data_rows, dr_first,
+                               bench_display, risk_free_rate, weights)
 
         ws.column_dimensions[_col(1)].width = 26
         for ci in range(2, n_cols + 1):
